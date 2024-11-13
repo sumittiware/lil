@@ -1,0 +1,17 @@
+http://lil.internal {
+    log {
+        format console
+        level DEBUG
+    }
+
+    reverse_proxy app:8080
+}
+
+http://plausible.internal {
+    log {
+        format console
+        level DEBUG
+    }
+
+    reverse_proxy plausible:8000
+}

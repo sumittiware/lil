@@ -1,0 +1,41 @@
+# Server configuration
+[server]
+address = ":7000"
+read_timeout = "7s"
+write_timeout = "7s"
+idle_timeout = "60s"
+
+# Database configuration
+[db]
+path = "urls.db"
+max_open_conns = 250
+max_idle_conns = 100
+conn_max_lifetime_mins = 30
+
+# Application configuration
+[app]
+enable_debug_logs = true
+short_url_length = 6
+public_url = "https://lil.io"  # Base URL for shortened links
+
+[admin]
+username = "admin"  # Username for admin interface
+password = "changeme"  # Password for admin interface
+
+# Analytics configuration
+[analytics]
+enabled = true
+num_workers = 2
+
+[analytics.providers.plausible]
+endpoint = "http://plausible:8000/api/event"
+timeout = 5
+
+[analytics.providers.accesslog]
+enabled = true
+file_path = "access.log"
+
+[analytics.providers.webhook]
+endpoint = "https://api.example.com/webhook"
+timeout = 5
+headers = { "Authorization" = "Bearer your-token", "X-Custom-Header" = "custom-value" }

@@ -1,0 +1,33 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: dev/Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    volumes:
+      - ../urls.db:/app/urls.db
+    environment:
+      - CONFIG_FILE=/app/config.toml
+    ports:
+      - "8080:8080"
+    networks:
+      - lil-ext
+
+  caddy:
+    image: caddy:2-alpine
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    networks:
+      - lil-ext
+
+networks:
+  lil-ext:
+    name: lil-dev-network
+    external: true

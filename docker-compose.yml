@@ -1,0 +1,50 @@
+services:
+  lil:
+    image: ghcr.io/mr-karan/lil:latest
+    container_name: lil
+    restart: unless-stopped
+    ports:
+      - "7000:7000"
+    volumes:
+      - lil_data:/app/data
+      - ./logs:/var/log
+    configs:
+      - source: app_config
+        target: /app/config.toml
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:7000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  lil_data:
+    name: lil_data
+
+configs:
+  app_config:
+    content: |
+      [server]
+      address = ":7000"
+      read_timeout = "7s"
+      write_timeout = "7s"
+      idle_timeout = "60s"
+
+      [db]
+      path = "/app/data/urls.db"
+      max_open_conns = 250
+      max_idle_conns = 100
+      conn_max_lifetime_mins = 30
+
+      [app]
+      enable_debug_logs = true
+      short_url_length = 6
+
+      [analytics]
+      enabled = true
+      num_workers = 2
+
+      [analytics.providers.accesslog]
+      enabled = true
+      file_path = "/var/log/access.log"

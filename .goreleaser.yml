@@ -1,0 +1,44 @@
+env:
+  - GO111MODULE=on
+  - CGO_ENABLED=0
+
+builds:
+  - binary: lil.bin
+    id: lil
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w -X "main.version={{ .Tag }} ({{ .ShortCommit }} {{ .Date }})"
+    dir: ./
+
+archives:
+  - format: tar.gz
+    files:
+      - README.md
+      - LICENSE
+
+dockers:
+  - id: lil
+    goos: linux
+    goarch: amd64
+    ids:
+      - lil
+    image_templates:
+      - "ghcr.io/mr-karan/lil:{{ .Tag }}"
+      - "ghcr.io/mr-karan/lil:latest"
+    skip_push: false
+    dockerfile: Dockerfile
+    use: docker
+    extra_files:
+      - config.sample.toml
+      - README.md
+      - LICENSE
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--platform=linux/amd64"
