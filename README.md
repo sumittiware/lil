@@ -1,6 +1,6 @@
-# Lil - High performant URL Shortener
+# Lil - High-Performance URL Shortener
 
-Lil is a high-performance URL shortener built in Go, designed with scalability and extensibility in mind. It combines the simplicity of SQLite with the power of in-memory caching to deliver lightning-fast URL redirects while providing rich analytics capabilities.
+Lil is a fast URL shortener built in Go, designed with scalability and extensibility in mind.
 
 ## Key Features
 
@@ -149,7 +149,7 @@ server {
 
 ## License
 
-[LICENSE]
+[LICENSE](./LICENSE)
 
 ## Contributing
 
