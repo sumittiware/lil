@@ -44,3 +44,4 @@ ui/node_modules/
 access.log
 config.toml
 *.env
+dist/
