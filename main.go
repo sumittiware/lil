@@ -31,11 +31,13 @@ func main() {
 
 	// Initialize SQLite store.
 	store, err := store.New(store.Conf{
-		DBPath:              ko.String("db.path"),
-		MaxOpenConns:        ko.Int("db.max_open_conns"),
-		MaxIdleConns:        ko.Int("db.max_idle_conns"),
-		ConnMaxLifetimeMins: ko.Int("db.conn_max_lifetime_mins"),
-		ShortURLLength:      ko.Int("app.short_url_length"),
+		DBPath:              ko.MustString("db.path"),
+		MaxOpenConns:        ko.MustInt("db.max_open_conns"),
+		MaxIdleConns:        ko.MustInt("db.max_idle_conns"),
+		ConnMaxLifetimeMins: ko.MustInt("db.conn_max_lifetime_mins"),
+		ShortURLLength:      ko.MustInt("app.short_url_length"),
+		BufferSize:          ko.MustInt("db.buffer_size"),
+		FlushInterval:       ko.MustDuration("db.flush_interval"),
 	}, app.logger)
 	if err != nil {
 		app.logger.Error("Failed to initialize SQLite store", "error", err)
