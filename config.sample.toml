@@ -11,6 +11,8 @@ path = "urls.db"
 max_open_conns = 250
 max_idle_conns = 100
 conn_max_lifetime_mins = 30
+buffer_size = 5000
+flush_interval = "500ms"
 
 # Application configuration
 [app]
