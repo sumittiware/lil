@@ -1,41 +1,71 @@
 # Server configuration
 [server]
+# The address and port the server will listen on (e.g. ":7000" for all interfaces, port 7000)
 address = ":7000"
+# Maximum duration for reading the entire request, including body
 read_timeout = "7s"
+# Maximum duration before timing out writes of the response
 write_timeout = "7s"
+# Maximum amount of time to wait for the next request when keep-alives are enabled
 idle_timeout = "60s"
 
 # Database configuration
 [db]
+# Path to SQLite database file
 path = "urls.db"
+# Maximum number of open connections to the database
 max_open_conns = 250
+# Maximum number of idle connections in the pool
 max_idle_conns = 100
+# Maximum amount of time a connection may be reused (in minutes)
 conn_max_lifetime_mins = 30
+# Size of the write buffer for batching database operations
+buffer_size = 5000
+# How often the write buffer is flushed to database
+flush_interval = "500ms"
 
 # Application configuration
 [app]
+# Enable detailed debug logging
 enable_debug_logs = true
+# Length of generated short URL codes
 short_url_length = 6
-public_url = "https://lil.io"  # Base URL for shortened links
+# Base URL used for generating shortened links
+public_url = "https://lil.io"
 
+# Admin interface authentication
 [admin]
-username = "admin"  # Username for admin interface
-password = "changeme"  # Password for admin interface
+# Username for accessing admin interface
+username = "admin"
+# Password for accessing admin interface
+password = "changeme"
 
 # Analytics configuration
 [analytics]
+# Enable/disable analytics collection
 enabled = true
+# Number of concurrent workers processing analytics events
 num_workers = 2
 
+# Plausible Analytics integration
 [analytics.providers.plausible]
+# Plausible API endpoint for sending events
 endpoint = "http://plausible:8000/api/event"
+# Request timeout in seconds
 timeout = 5
 
+# Access log configuration
 [analytics.providers.accesslog]
+# Enable/disable access log writing
 enabled = true
+# Path to access log file
 file_path = "access.log"
 
+# Webhook integration
 [analytics.providers.webhook]
+# Webhook endpoint URL
 endpoint = "https://api.example.com/webhook"
+# Request timeout in seconds
 timeout = 5
+# Custom headers to include in webhook requests
 headers = { "Authorization" = "Bearer your-token", "X-Custom-Header" = "custom-value" }

@@ -11,8 +11,8 @@ Create a shortened URL from a long URL.
 {
   "url": "https://example.com/very/long/url",  // Required
   "title": "My Link",                          // Optional
-  "slug": "custom-slug",                       // Optional
-  "expiry_in_secs": 3600                      // Optional, in seconds
+  "slug": "custom-slug",                       // Optional, custom short code
+  "expiry_in_secs": 3600                      // Optional, URL expiry in seconds
 }
 ```
 
@@ -21,7 +21,8 @@ Create a shortened URL from a long URL.
 {
   "status": "success",
   "data": {
-    "short_code": "abc123"
+    "short_code": "abc123",
+    "public_url": "https://lil.io"
   }
 }
 ```
@@ -65,6 +66,22 @@ Retrieve a paginated list of shortened URLs.
 }
 ```
 
+## Delete URL
+
+Delete a shortened URL.
+
+**Endpoint:** `DELETE /api/v1/urls/{shortCode}`
+
+**Response:** HTTP 204 No Content
+
+**Error Response:**
+```json
+{
+  "status": "error",
+  "message": "URL not found"
+}
+```
+
 ## Health Check
 
 Check if the service is healthy.
@@ -76,5 +93,21 @@ Check if the service is healthy.
 {
   "status": "success",
   "data": "healthy"
+}
+```
+
+## Redirect
+
+Redirect to the original URL.
+
+**Endpoint:** `GET /{shortCode}`
+
+**Response:** HTTP 302 Found with Location header
+
+**Error Response:**
+```json
+{
+  "status": "error",
+  "message": "URL not found"
 }
 ```

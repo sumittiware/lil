@@ -1,4 +1,4 @@
-PRAGMA busy_timeout       = 30000;       -- Increased wait time to 30s for busy/locked DB
+PRAGMA busy_timeout       = 5000;        -- Increased wait time to 5s for busy/locked DB
 PRAGMA journal_mode       = WAL;         -- Write-Ahead Logging for better concurrency
 PRAGMA journal_size_limit = 31457280;    -- Increased WAL file size limit to 30MB
 PRAGMA synchronous       = NORMAL;       -- Balance between safety and performance

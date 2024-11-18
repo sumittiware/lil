@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	_ "embed"
 	"errors"
+	"fmt"
 	"log/slog"
 	rand "math/rand/v2"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +28,15 @@ type Store struct {
 	mu          sync.RWMutex
 	logger      *slog.Logger
 	shortURLLen int
+
+	// Write buffer components
+	writeBuf    []models.URLData
+	bufMu       sync.Mutex
+	bufferSize  int
+	flushTicker *time.Ticker
+	done        chan struct{}
+	flushChan   chan []models.URLData
+	workerDone  chan struct{}
 }
 
 type Conf struct {
@@ -34,6 +45,8 @@ type Conf struct {
 	MaxIdleConns        int
 	ConnMaxLifetimeMins int
 	ShortURLLength      int
+	BufferSize          int // Number of URLs to buffer before flush
+	FlushInterval       time.Duration
 }
 
 func New(cfg Conf, logger *slog.Logger) (*Store, error) {
@@ -57,7 +70,16 @@ func New(cfg Conf, logger *slog.Logger) (*Store, error) {
 		cache:       make(map[string]models.URLData),
 		logger:      logger,
 		shortURLLen: cfg.ShortURLLength,
+		bufferSize:  cfg.BufferSize,
+		writeBuf:    make([]models.URLData, 0, cfg.BufferSize),
+		flushTicker: time.NewTicker(cfg.FlushInterval),
+		done:        make(chan struct{}),
+		flushChan:   make(chan []models.URLData, 100), // Buffer channel for pending flushes
+		workerDone:  make(chan struct{}),
 	}
+
+	// Start single flush worker
+	go s.flushWorker()
 
 	// Load all existing URLs into cache
 	if err := s.loadCache(); err != nil {
@@ -115,7 +137,113 @@ func (s *Store) loadCache() error {
 }
 
 func (s *Store) Close() error {
+	s.flushTicker.Stop()
+	close(s.done)
+	close(s.flushChan)
+	<-s.workerDone // Wait for worker to finish
 	return s.db.Close()
+}
+
+func (s *Store) flushWorker() {
+	defer close(s.workerDone)
+
+	for {
+		select {
+		case <-s.flushTicker.C:
+			s.triggerFlush()
+		case urls, ok := <-s.flushChan:
+			if !ok {
+				return
+			}
+			s.flushWithRetry(urls)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+func (s *Store) triggerFlush() {
+	s.bufMu.Lock()
+	if len(s.writeBuf) == 0 {
+		s.bufMu.Unlock()
+		return
+	}
+
+	// Copy buffer and reset it
+	urls := make([]models.URLData, len(s.writeBuf))
+	copy(urls, s.writeBuf)
+	s.writeBuf = s.writeBuf[:0]
+	s.bufMu.Unlock()
+
+	// Send to flush channel
+	select {
+	case s.flushChan <- urls:
+	default:
+		s.logger.Warn("flush channel full, dropping batch", "count", len(urls))
+	}
+}
+
+func (s *Store) flushWithRetry(urls []models.URLData) {
+	const maxRetries = 3
+	const retryDelay = 100 * time.Millisecond
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if err := s.doFlush(urls); err != nil {
+			if attempt < maxRetries-1 {
+				s.logger.Warn("flush failed, retrying",
+					"error", err,
+					"attempt", attempt+1,
+					"count", len(urls))
+				time.Sleep(retryDelay * time.Duration(attempt+1))
+				continue
+			}
+			s.logger.Error("flush failed after retries",
+				"error", err,
+				"count", len(urls))
+		}
+		return
+	}
+}
+
+func (s *Store) doFlush(urls []models.URLData) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Build a single INSERT statement with multiple VALUES clauses
+	var sb strings.Builder
+	sb.WriteString(`INSERT INTO urls (short_code, url, title, created_at, expires_at) VALUES `)
+
+	vals := make([]interface{}, 0, len(urls)*5) // 5 fields per URL
+
+	for i, urlData := range urls {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("(?,?,?,?,?)")
+
+		vals = append(vals,
+			urlData.ShortCode,
+			urlData.URL,
+			urlData.Title,
+			urlData.CreatedAt,
+			urlData.ExpiresAt,
+		)
+	}
+
+	// Execute single batch insert
+	if _, err := tx.Exec(sb.String(), vals...); err != nil {
+		return fmt.Errorf("batch insert: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	s.logger.Info("flushed urls to database", "count", len(urls))
+	return nil
 }
 
 func (s *Store) Ping(ctx context.Context) error {
@@ -153,26 +281,27 @@ func (s *Store) CreateShortURL(ctx context.Context, url, title string, slug stri
 		CreatedAt: createdAt,
 	}
 
-	var expiresAt *time.Time
 	if expiry > 0 {
 		t := createdAt.Add(expiry)
-		expiresAt = &t
-		urlData.ExpiresAt = expiresAt
+		urlData.ExpiresAt = &t
 	}
 
-	// Store in database
-	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO urls (short_code, url, title, created_at, expires_at) VALUES (?, ?, ?, ?, ?)`,
-		shortCode, url, title, createdAt, expiresAt)
-	if err != nil {
-		return "", err
-	}
-
-	// Update cache
+	// Update cache immediately
 	s.mu.Lock()
 	s.cache[shortCode] = urlData
 	metrics.URLsStoredGauge.Set(float64(len(s.cache)))
 	s.mu.Unlock()
+
+	// Add to write buffer
+	s.bufMu.Lock()
+	s.writeBuf = append(s.writeBuf, urlData)
+	shouldFlush := len(s.writeBuf) >= s.bufferSize
+	s.bufMu.Unlock()
+
+	// Trigger flush if buffer is full
+	if shouldFlush {
+		s.triggerFlush()
+	}
 
 	return shortCode, nil
 }
@@ -265,7 +394,6 @@ func (s *Store) GetURLs(ctx context.Context, page, perPage int64) ([]models.URLD
 	return urls, total, rows.Err()
 }
 
-// TODO: Make this configurable from the config.
 // generateRandomString creates a random string of specified length
 func generateRandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
