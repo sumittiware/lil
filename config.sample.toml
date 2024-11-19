@@ -69,3 +69,8 @@ endpoint = "https://api.example.com/webhook"
 timeout = 5
 # Custom headers to include in webhook requests
 headers = { "Authorization" = "Bearer your-token", "X-Custom-Header" = "custom-value" }
+
+# Rate limiting
+[rate]
+# Per minute rate limit
+limit = 100
