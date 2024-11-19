@@ -5,12 +5,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/VictoriaMetrics/metrics"
 	"github.com/knadh/koanf/v2"
 	"github.com/mr-karan/lil/internal/analytics"
 	"github.com/mr-karan/lil/internal/middleware"
 	"github.com/mr-karan/lil/internal/store"
+	"github.com/ulule/limiter/v3"
 )
 
 type App struct {
@@ -73,6 +75,12 @@ func main() {
 	// Start analytics workers for dispatching events.
 	analyticsManager.Start(context.TODO())
 
+	// Defining the rate limiter
+	rate := limiter.Rate{
+		Period: 1 * time.Minute,
+		Limit:  ko.MustInt64("rate.limit"),
+	}
+
 	// Initialize router and start server
 	mux := http.NewServeMux()
 
@@ -95,7 +103,7 @@ func main() {
 	mux.Handle("GET /admin/...", adminHandler)
 
 	// Short URL redirect handler (catch-all)
-	mux.HandleFunc("GET /{shortCode}", app.handleRedirect)
+	mux.Handle("GET /{shortCode}", middleware.RateLimiter(rate)(http.HandlerFunc(app.handleRedirect)))
 
 	server := &http.Server{
 		Addr:         ko.MustString("server.address"),
