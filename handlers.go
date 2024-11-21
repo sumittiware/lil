@@ -2,15 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/mr-karan/lil/internal/analytics"
 	"github.com/mr-karan/lil/internal/metrics"
 	"github.com/mr-karan/lil/internal/store"
+	"github.com/mr-karan/lil/models"
 )
 
 type shortenURLRequest struct {
@@ -207,4 +210,77 @@ func (app *App) handleRedirect(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Location", urlData.URL)
 	w.WriteHeader(http.StatusFound)
+}
+
+func (app *App) handleBulkUpload(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseMultipartForm(10 << 20) // 10MB limit
+	if err != nil {
+		http.Error(w, "Unable to parse form", http.StatusBadRequest)
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Unable to get file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		http.Error(w, "Unable to read CSV file", http.StatusInternalServerError)
+		return
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	results := make([]map[string]string, 0, len(records))
+	batchSize := 10 // Number of URLs to process in each batch
+	batch := make([]models.URLData, 0, batchSize)
+
+	processBatch := func(batch []models.URLData) {
+		defer wg.Done()
+		shortenedURLs := app.store.CreateShortURLs(context.TODO(), batch)
+		mu.Lock()
+		results = append(results, shortenedURLs...)
+		mu.Unlock()
+	}
+
+	for i, record := range records {
+		if len(record) == 0 {
+			continue
+		}
+		longURL := record[0]
+		title := record[1]
+		slug := record[2]
+		expiry := record[3]
+
+		var expiryDuration time.Duration
+		if expiry != nil && expiry > 0 {
+			expiry = time.Duration(*req.ExpiryInSecs) * time.Second
+		}
+
+		urlData := models.URLData{
+			URL:       longURL,
+			Title:     title,
+			ShortCode: slug,
+			CreatedAt: time.Now(),
+			ExpiresAt: &expiryDuration,
+		}
+		batch = append(batch, urlData)
+
+		if len(batch) == batchSize || i == len(records)-1 {
+			wg.Add(1)
+			go processBatch(batch)
+			batch = make([]models.URLData, 0, batchSize)
+		}
+	}
+
+	wg.Wait()
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(results); err != nil {
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+	}
 }
