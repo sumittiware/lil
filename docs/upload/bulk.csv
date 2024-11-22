@@ -2,3 +2,4 @@ URL,Title,Slug,Expiry In Secs
 https://example.com/very/long/url,My Example,,3600
 https://anotherexample.com,Another Example,custom-slug,
 https://example.com/short,Short URL,short-url,7200
+https://youtube.com/short-2,Short URL,short-video,7200

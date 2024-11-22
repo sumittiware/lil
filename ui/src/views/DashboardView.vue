@@ -99,7 +99,6 @@ const currentPage = ref(1)
 const perPage = ref(20)
 const totalUrls = ref(0)
 const searchQuery = ref('')
-const allUrls = ref([])
 
 const filteredUrls = computed(() => {
   if (!searchQuery.value) return urls.value

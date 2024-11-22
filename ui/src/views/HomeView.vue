@@ -92,6 +92,22 @@
                 </div>
               </div>
             </div>
+
+            <div class="divider">Or</div>
+
+             <!-- Bulk Create Button and File Input -->
+            <div class="form-control">
+              <label class="label cursor-pointer select-text">
+                <span class="label-text font-medium">Bulk Create</span>
+              </label>
+              <input
+                type="file"
+                @change="handleFileUpload"
+                accept=".csv"
+                class="file-input file-input-bordered w-full"
+              />
+            </div>
+
           </form>
 
           <!-- Result with animation -->
@@ -199,6 +215,36 @@ async function copyToClipboard() {
     error.value = 'Failed to copy to clipboard'
   }
 }
+
+async function handleFileUpload(event) {
+  const file = event.target.files[0]
+  if (!file) {
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const response = await fetch('/api/v1/bulk-shorten', {
+      method: 'POST',
+      body: formData,
+    })
+    console.log(response)
+  
+    const data = await response.json()
+    if (data.status === 'success') {
+      // Handle bulk creation success
+      console.log('Bulk creation successful:', data)
+      alert('Bulk URL creation successful!')
+    } else {
+      error.value = data.message || 'Failed to create short URLs in bulk'
+    }
+  } catch (err) {
+    console.error('Error:', err)
+    error.value = 'An unexpected error occurred during bulk upload'
+  }
+}
 </script>
 
 <style>
@@ -208,6 +254,28 @@ async function copyToClipboard() {
 
 .animate-shake {
   animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px dotted;
+}
+
+.divider:not(:empty)::before {
+  margin-right: .25em;
+}
+
+.divider:not(:empty)::after {
+  margin-left: .25em;
 }
 
 @keyframes fadeIn {
@@ -222,3 +290,4 @@ async function copyToClipboard() {
   40%, 60% { transform: translate3d(4px, 0, 0); }
 }
 </style>
+
