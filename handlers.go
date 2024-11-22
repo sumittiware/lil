@@ -235,8 +235,8 @@ func (app *App) handleBulkUpload(w http.ResponseWriter, r *http.Request) {
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	results := make([]map[string]string, 0, len(records))
-	batchSize := 10 // Number of URLs to process in each batch
+	results := make([]map[string]string, 0, len(records)-1) // Adjust initial capacity to skip the first record
+	batchSize := 10                                         // Number of URLs to process in each batch
 	batch := make([]models.URLData, 0, batchSize)
 
 	processBatch := func(batch []models.URLData) {
@@ -247,18 +247,24 @@ func (app *App) handleBulkUpload(w http.ResponseWriter, r *http.Request) {
 		mu.Unlock()
 	}
 
-	for i, record := range records {
+	// Start loop from index 1 to skip the first entry
+	for i := 1; i < len(records); i++ {
+		record := records[i]
 		if len(record) == 0 {
 			continue
 		}
+
 		longURL := record[0]
 		title := record[1]
 		slug := record[2]
 		expiry := record[3]
 
-		var expiryDuration time.Duration
-		if expiry != nil && expiry > 0 {
-			expiry = time.Duration(*req.ExpiryInSecs) * time.Second
+		var expiresAt *time.Time
+		if expiry != "" {
+			if expirySeconds, err := strconv.ParseInt(expiry, 10, 64); err == nil {
+				expiration := time.Now().Add(time.Duration(expirySeconds) * time.Second)
+				expiresAt = &expiration
+			}
 		}
 
 		urlData := models.URLData{
@@ -266,15 +272,22 @@ func (app *App) handleBulkUpload(w http.ResponseWriter, r *http.Request) {
 			Title:     title,
 			ShortCode: slug,
 			CreatedAt: time.Now(),
-			ExpiresAt: &expiryDuration,
+			ExpiresAt: expiresAt,
 		}
+
 		batch = append(batch, urlData)
 
-		if len(batch) == batchSize || i == len(records)-1 {
+		if len(batch) == batchSize {
 			wg.Add(1)
 			go processBatch(batch)
 			batch = make([]models.URLData, 0, batchSize)
 		}
+	}
+
+	// Process any remaining records in the final batch
+	if len(batch) > 0 {
+		wg.Add(1)
+		go processBatch(batch)
 	}
 
 	wg.Wait()
