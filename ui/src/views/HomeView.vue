@@ -230,15 +230,12 @@ async function handleFileUpload(event) {
       method: 'POST',
       body: formData,
     })
-    console.log(response)
-  
-    const data = await response.json()
-    if (data.status === 'success') {
-      // Handle bulk creation success
-      console.log('Bulk creation successful:', data)
+
+    if (response.status === 200) {
+      console.log('Bulk creation successful:', response.json())
       alert('Bulk URL creation successful!')
-    } else {
-      error.value = data.message || 'Failed to create short URLs in bulk'
+    }else{
+      error.value = 'Failed to create short URLs in bulk'
     }
   } catch (err) {
     console.error('Error:', err)
