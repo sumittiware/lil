@@ -88,6 +88,7 @@ func main() {
 	mux.HandleFunc("GET /api/v1", app.handleIndex)
 	mux.HandleFunc("GET /api/v1/health", app.handleHealthCheck)
 	mux.HandleFunc("POST /api/v1/shorten", app.handleShortenURL)
+	mux.HandleFunc("POST /api/v1/bulk-shorten", app.handleBulkUpload)
 	mux.HandleFunc("GET /api/v1/urls", app.handleGetURLs)
 	mux.HandleFunc("DELETE /api/v1/urls/{shortCode}", app.handleDeleteURL)
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {

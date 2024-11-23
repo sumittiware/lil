@@ -394,6 +394,61 @@ func (s *Store) GetURLs(ctx context.Context, page, perPage int64) ([]models.URLD
 	return urls, total, rows.Err()
 }
 
+func (s *Store) CreateShortURLs(ctx context.Context, urls []models.URLData) []map[string]string {
+	var results []map[string]string
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, urlData := range urls {
+		var shortCode string
+		if urlData.ShortCode != "" {
+			_, exists := s.cache[urlData.ShortCode]
+			if exists {
+				results = append(results, map[string]string{
+					"url":   urlData.URL,
+					"error": "slug already exists",
+				})
+				continue
+			}
+			shortCode = urlData.ShortCode
+		} else {
+			shortCode = generateRandomString(s.shortURLLen)
+			for {
+				_, exists := s.cache[shortCode]
+				if !exists {
+					break
+				}
+				shortCode = generateRandomString(s.shortURLLen)
+			}
+		}
+
+		createdAt := time.Now()
+		urlData.ShortCode = shortCode
+		urlData.CreatedAt = createdAt
+
+		if urlData.ExpiresAt != nil && urlData.ExpiresAt.After(createdAt) {
+			expiry := time.Until(*urlData.ExpiresAt)
+			t := createdAt.Add(expiry)
+			urlData.ExpiresAt = &t
+		}
+
+		s.cache[shortCode] = urlData
+		s.writeBuf = append(s.writeBuf, urlData)
+
+		results = append(results, map[string]string{
+			"url":      urlData.URL,
+			"shortUrl": shortCode,
+		})
+	}
+
+	if len(s.writeBuf) >= s.bufferSize {
+		s.triggerFlush()
+	}
+
+	return results
+}
+
 // generateRandomString creates a random string of specified length
 func generateRandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
